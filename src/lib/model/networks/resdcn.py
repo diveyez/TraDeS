@@ -198,21 +198,18 @@ class PoseResDCN(BaseModel):
 
 
     def _make_layer(self, block, planes, blocks, stride=1):
-        downsample = None
-        if stride != 1 or self.inplanes != planes * block.expansion:
-            downsample = nn.Sequential(
-                nn.Conv2d(self.inplanes, planes * block.expansion,
-                          kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(planes * block.expansion, momentum=BN_MOMENTUM),
-            )
+      downsample = None
+      if stride != 1 or self.inplanes != planes * block.expansion:
+          downsample = nn.Sequential(
+              nn.Conv2d(self.inplanes, planes * block.expansion,
+                        kernel_size=1, stride=stride, bias=False),
+              nn.BatchNorm2d(planes * block.expansion, momentum=BN_MOMENTUM),
+          )
 
-        layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample))
-        self.inplanes = planes * block.expansion
-        for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes))
-
-        return nn.Sequential(*layers)
+      layers = [block(self.inplanes, planes, stride, downsample)]
+      self.inplanes = planes * block.expansion
+      layers.extend(block(self.inplanes, planes) for _ in range(1, blocks))
+      return nn.Sequential(*layers)
 
     def _get_deconv_cfg(self, deconv_kernel, index):
         if deconv_kernel == 4:
@@ -228,43 +225,45 @@ class PoseResDCN(BaseModel):
         return deconv_kernel, padding, output_padding
 
     def _make_deconv_layer(self, num_layers, num_filters, num_kernels):
-        assert num_layers == len(num_filters), \
-            'ERROR: num_deconv_layers is different len(num_deconv_filters)'
-        assert num_layers == len(num_kernels), \
-            'ERROR: num_deconv_layers is different len(num_deconv_filters)'
+      assert num_layers == len(num_filters), \
+          'ERROR: num_deconv_layers is different len(num_deconv_filters)'
+      assert num_layers == len(num_kernels), \
+          'ERROR: num_deconv_layers is different len(num_deconv_filters)'
 
-        layers = []
-        for i in range(num_layers):
-            kernel, padding, output_padding = \
-                self._get_deconv_cfg(num_kernels[i], i)
+      layers = []
+      for i in range(num_layers):
+        kernel, padding, output_padding = \
+            self._get_deconv_cfg(num_kernels[i], i)
 
-            planes = num_filters[i]
-            fc = DCN(self.inplanes, planes, 
-                    kernel_size=(3,3), stride=1,
-                    padding=1, dilation=1, deformable_groups=1)
-            # fc = nn.Conv2d(self.inplanes, planes,
-            #         kernel_size=3, stride=1, 
-            #         padding=1, dilation=1, bias=False)
-            # fill_fc_weights(fc)
-            up = nn.ConvTranspose2d(
-                    in_channels=planes,
-                    out_channels=planes,
-                    kernel_size=kernel,
-                    stride=2,
-                    padding=padding,
-                    output_padding=output_padding,
-                    bias=self.deconv_with_bias)
-            fill_up_weights(up)
+        planes = num_filters[i]
+        fc = DCN(self.inplanes, planes, 
+                kernel_size=(3,3), stride=1,
+                padding=1, dilation=1, deformable_groups=1)
+        # fc = nn.Conv2d(self.inplanes, planes,
+        #         kernel_size=3, stride=1, 
+        #         padding=1, dilation=1, bias=False)
+        # fill_fc_weights(fc)
+        up = nn.ConvTranspose2d(
+                in_channels=planes,
+                out_channels=planes,
+                kernel_size=kernel,
+                stride=2,
+                padding=padding,
+                output_padding=output_padding,
+                bias=self.deconv_with_bias)
+        fill_up_weights(up)
 
-            layers.append(fc)
-            layers.append(nn.BatchNorm2d(planes, momentum=BN_MOMENTUM))
-            layers.append(nn.ReLU(inplace=True))
-            layers.append(up)
-            layers.append(nn.BatchNorm2d(planes, momentum=BN_MOMENTUM))
-            layers.append(nn.ReLU(inplace=True))
-            self.inplanes = planes
+        layers.extend((
+            fc,
+            nn.BatchNorm2d(planes, momentum=BN_MOMENTUM),
+            nn.ReLU(inplace=True),
+            up,
+            nn.BatchNorm2d(planes, momentum=BN_MOMENTUM),
+            nn.ReLU(inplace=True),
+        ))
+        self.inplanes = planes
 
-        return nn.Sequential(*layers)
+      return nn.Sequential(*layers)
 
     def init_weights(self, num_layers, rgb=False):
         url = model_urls['resnet{}'.format(num_layers)]

@@ -6,12 +6,10 @@ import torch
 import torch.nn as nn
 
 def _sigmoid(x):
-  y = torch.clamp(x.sigmoid_(), min=1e-4, max=1-1e-4)
-  return y
+  return torch.clamp(x.sigmoid_(), min=1e-4, max=1-1e-4)
 
 def _sigmoid12(x):
-  y = torch.clamp(x.sigmoid_(), 1e-12)
-  return y
+  return torch.clamp(x.sigmoid_(), 1e-12)
 
 def _gather_feat(feat, ind):
   dim = feat.size(2)

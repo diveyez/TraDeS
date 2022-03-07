@@ -22,11 +22,11 @@ class Logger(object):
       os.makedirs(opt.save_dir)
     if not os.path.exists(opt.debug_dir):
       os.makedirs(opt.debug_dir)
-   
+
     time_str = time.strftime('%Y-%m-%d-%H-%M')
 
-    args = dict((name, getattr(opt, name)) for name in dir(opt)
-                if not name.startswith('_'))
+    args = {name: getattr(opt, name) for name in dir(opt)
+                  if not name.startswith('_')}
     file_name = os.path.join(opt.save_dir, 'opt.txt')
     with open(file_name, 'wt') as opt_file:
       opt_file.write('==> commit hash: {}\n'.format(
@@ -39,7 +39,7 @@ class Logger(object):
       opt_file.write('\n==> Opt:\n')
       for k, v in sorted(args.items()):
         opt_file.write('  %s: %s\n' % (str(k), str(v)))
-          
+
     log_dir = opt.save_dir + '/logs_{}'.format(time_str)
     if USE_TENSORBOARD:
       self.writer = tensorboardX.SummaryWriter(log_dir=log_dir)
@@ -48,7 +48,7 @@ class Logger(object):
         os.mkdir(os.path.dirname(log_dir))
       if not os.path.exists(log_dir):
         os.mkdir(log_dir)
-    self.log = open(log_dir + '/log.txt', 'w')
+    self.log = open(f'{log_dir}/log.txt', 'w')
     try:
       os.system('cp {}/opt.txt {}/'.format(opt.save_dir, log_dir))
     except:

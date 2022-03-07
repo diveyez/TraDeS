@@ -23,12 +23,12 @@ class Debugger(object):
     self.cnt = 0
     colors = [(color_list[i]).astype(np.uint8) for i in range(len(color_list))]
     while len(colors) < len(self.names):
-      colors = colors + colors[:min(len(colors), len(self.names) - len(colors))]
+      colors += colors[:min(len(colors), len(self.names) - len(colors))]
     self.colors = np.array(colors, dtype=np.uint8).reshape(len(colors), 1, 1, 3)
     if self.theme == 'white':
       self.colors = self.colors.reshape(-1)[::-1].reshape(len(colors), 1, 1, 3)
       self.colors = np.clip(self.colors, 0., 0.6 * 255).astype(np.uint8)
-  
+
     self.num_joints = 17
     self.edges = [[0, 1], [0, 2], [1, 3], [2, 4], 
                   [3, 5], [4, 6], [5, 6], 
@@ -113,8 +113,7 @@ class Debugger(object):
     return color_map
 
   def _get_rand_color(self):
-    c = ((np.random.random((3)) * 0.6 + 0.2) * 255).astype(np.int32).tolist()
-    return c
+    return ((np.random.random((3)) * 0.6 + 0.2) * 255).astype(np.int32).tolist()
 
   def add_coco_bbox(self, bbox, cat, conf=1, show_txt=True, 
     no_bbox=False, img_id='default'): 
@@ -130,23 +129,23 @@ class Debugger(object):
       txt = '{}{}'.format(self.names[cat], ID)
     else:
       txt = '{}{:.1f}'.format(self.names[cat], conf)
-    thickness = 2
     fontsize = 0.8 if self.opt.qualitative else 0.5
     if self.opt.show_track_color:
       track_id = int(conf)
-      if not (track_id in self.track_color):
+      if track_id not in self.track_color:
         self.track_color[track_id] = self._get_rand_color()
       c = self.track_color[track_id]
-      # thickness = 4
-      # fontsize = 0.8
+        # thickness = 4
+        # fontsize = 0.8
     if not self.opt.not_show_bbox:
       font = cv2.FONT_HERSHEY_SIMPLEX
+      thickness = 2
       cat_size = cv2.getTextSize(txt, font, fontsize, thickness)[0]
       if not no_bbox:
         cv2.rectangle(
           self.imgs[img_id], (bbox[0], bbox[1]), (bbox[2], bbox[3]), 
           c, thickness)
-        
+
       if show_txt:
         cv2.rectangle(self.imgs[img_id],
                       (bbox[0], bbox[1] - cat_size[1] - thickness),
@@ -155,14 +154,14 @@ class Debugger(object):
                     font, fontsize, (0, 0, 0), thickness=1, lineType=cv2.LINE_AA)
 
   def add_coco_seg(self, seg, tracking_id, img_id='default',conf=1):
-      if self.opt.show_track_color:
-          track_id = int(conf)
-          if not (track_id in self.track_color):
-              self.track_color[track_id] = self._get_rand_color()
-          color = self.track_color[track_id]
-          color = np.array([color])
-      seg = seg > 0.5
-      self.imgs[img_id][seg] = self.imgs[img_id][seg]*0.2 + color*0.8
+    if self.opt.show_track_color:
+      track_id = int(conf)
+      if track_id not in self.track_color:
+        self.track_color[track_id] = self._get_rand_color()
+      color = self.track_color[track_id]
+      color = np.array([color])
+    seg = seg > 0.5
+    self.imgs[img_id][seg] = self.imgs[img_id][seg]*0.2 + color*0.8
 
   def add_tracking_id(self, ct, tracking_id, img_id='default'):
     txt = '{}'.format(tracking_id)
@@ -193,39 +192,25 @@ class Debugger(object):
     return
 
   def show_all_imgs(self, pause=False, Time=0):
-    if 1:
-      for i, v in self.imgs.items():
-        cv2.imshow('{}'.format(i), v)
-      if not self.with_3d:
-        cv2.waitKey(0 if pause else 1)
-      else:
-        max_range = np.array([
-          self.xmax-self.xmin, self.ymax-self.ymin, self.zmax-self.zmin]).max()
-        Xb = 0.5*max_range*np.mgrid[
-          -1:2:2,-1:2:2,-1:2:2][0].flatten() + 0.5*(self.xmax+self.xmin)
-        Yb = 0.5*max_range*np.mgrid[
-          -1:2:2,-1:2:2,-1:2:2][1].flatten() + 0.5*(self.ymax+self.ymin)
-        Zb = 0.5*max_range*np.mgrid[
-          -1:2:2,-1:2:2,-1:2:2][2].flatten() + 0.5*(self.zmax+self.zmin)
-        for xb, yb, zb in zip(Xb, Yb, Zb):
-          self.ax.plot([xb], [yb], [zb], 'w')
-        if self.opt.debug == 9:
-          self.plt.pause(1e-27)
-        else:
-          self.plt.show()
+    for i, v in self.imgs.items():
+      cv2.imshow('{}'.format(i), v)
+    if not self.with_3d:
+      cv2.waitKey(0 if pause else 1)
     else:
-      self.ax = None
-      nImgs = len(self.imgs)
-      fig=plt.figure(figsize=(nImgs * 10,10))
-      nCols = nImgs
-      nRows = nImgs // nCols
-      for i, (k, v) in enumerate(self.imgs.items()):
-        fig.add_subplot(1, nImgs, i + 1)
-        if len(v.shape) == 3:
-          plt.imshow(cv2.cvtColor(v, cv2.COLOR_BGR2RGB))
-        else:
-          plt.imshow(v)
-      plt.show()
+      max_range = np.array([
+        self.xmax-self.xmin, self.ymax-self.ymin, self.zmax-self.zmin]).max()
+      Xb = 0.5*max_range*np.mgrid[
+        -1:2:2,-1:2:2,-1:2:2][0].flatten() + 0.5*(self.xmax+self.xmin)
+      Yb = 0.5*max_range*np.mgrid[
+        -1:2:2,-1:2:2,-1:2:2][1].flatten() + 0.5*(self.ymax+self.ymin)
+      Zb = 0.5*max_range*np.mgrid[
+        -1:2:2,-1:2:2,-1:2:2][2].flatten() + 0.5*(self.zmax+self.zmin)
+      for xb, yb, zb in zip(Xb, Yb, Zb):
+        self.ax.plot([xb], [yb], [zb], 'w')
+      if self.opt.debug == 9:
+        self.plt.pause(1e-27)
+      else:
+        self.plt.show()
 
   def save_img(self, imgId='default', path='./cache/debug/'):
     cv2.imwrite(path + '{}.png'.format(imgId), self.imgs[imgId])
@@ -233,18 +218,18 @@ class Debugger(object):
   def save_all_imgs(self, path='./cache/debug/', prefix='', genID=False):
     if genID:
       try:
-        idx = int(np.loadtxt(path + '/id.txt'))
+        idx = int(np.loadtxt(f'{path}/id.txt'))
       except:
         idx = 0
       prefix=idx
-      np.savetxt(path + '/id.txt', np.ones(1) * (idx + 1), fmt='%d')
+      np.savetxt(f'{path}/id.txt', np.ones(1) * (idx + 1), fmt='%d')
     for i, v in self.imgs.items():
       if i in self.opt.save_imgs or self.opt.save_imgs == []:
         cv2.imwrite(
           path + '/{}{}{}.jpg'.format(prefix, i, self.opt.save_img_suffix), v, )
 
   def remove_side(self, img_id, img):
-    if not (img_id in self.imgs):
+    if img_id not in self.imgs:
       return
     ws = img.sum(axis=2).sum(axis=0)
     l = 0
@@ -275,12 +260,6 @@ class Debugger(object):
       self.imgs[img_id] = image_or_path.copy()
     else: 
       self.imgs[img_id] = cv2.imread(image_or_path)
-    # thickness = 1
-    if self.opt.show_track_color:
-      # self.imgs[img_id] = (self.imgs[img_id] * 0.5 + \
-      #   np.ones_like(self.imgs[img_id]) * 255 * 0.5).astype(np.uint8)
-        # thickness = 3
-      pass
     if flipped:
       self.imgs[img_id] = self.imgs[img_id][:, ::-1].copy()
     for item in dets:
@@ -295,8 +274,8 @@ class Debugger(object):
           cl = (255 - tango_color_dark[int(item['class']) - 1, 0, 0]).tolist()
         dim = item['dim']
         loc = item['loc']
-        rot_y = item['rot_y']
         if loc[2] > 1:
+          rot_y = item['rot_y']
           box_3d = compute_box_3d(dim, loc, rot_y)
           box_2d = project_to_image(box_3d, calib)
           self.imgs[img_id] = draw_box_3d(

@@ -18,7 +18,7 @@ class Tracker(object):
         item['active'] = 1
         item['age'] = 1
         item['tracking_id'] = self.id_count
-        if not ('ct' in item):
+        if 'ct' not in item:
           bbox = item['bbox']
           item['ct'] = [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2]
         self.tracks.append(item)

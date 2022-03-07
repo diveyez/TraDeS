@@ -78,7 +78,7 @@ class COCOHP(GenericDataset):
             bbox = item['bbox']
             bbox[2] -= bbox[0]
             bbox[3] -= bbox[1]
-            bbox_out  = list(map(self._to_float, bbox[0:4]))
+            bbox_out = list(map(self._to_float, bbox[:4]))
             detection['bbox'] = bbox_out
           detections.append(detection)
     return detections

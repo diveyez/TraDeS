@@ -22,14 +22,14 @@ def get_extensions():
     main_file = glob.glob(os.path.join(extensions_dir, "*.cpp"))
     source_cpu = glob.glob(os.path.join(extensions_dir, "cpu", "*.cpp"))
     source_cuda = glob.glob(os.path.join(extensions_dir, "cuda", "*.cu"))
-    
+
     os.environ["CC"] = "g++"
     sources = main_file + source_cpu
     extension = CppExtension
     extra_compile_args = {"cxx": []}
     define_macros = []
 
-    
+
     if torch.cuda.is_available() and CUDA_HOME is not None:
         extension = CUDAExtension
         sources += source_cuda
@@ -40,14 +40,9 @@ def get_extensions():
             "-D__CUDA_NO_HALF_CONVERSIONS__",
             "-D__CUDA_NO_HALF2_OPERATORS__",
         ]
-    else:
-        #raise NotImplementedError('Cuda is not available')
-        pass
-    
-
     sources = [os.path.join(extensions_dir, s) for s in sources]
     include_dirs = [extensions_dir]
-    ext_modules = [
+    return [
         extension(
             "_ext",
             sources,
@@ -56,7 +51,6 @@ def get_extensions():
             extra_compile_args=extra_compile_args,
         )
     ]
-    return ext_modules
 
 setup(
     name="DCNv2",

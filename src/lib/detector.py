@@ -26,11 +26,7 @@ from pycocotools import mask as mask_utils
 
 class Detector(object):
   def __init__(self, opt):
-    if opt.gpus[0] >= 0:
-      opt.device = torch.device('cuda')
-    else:
-      opt.device = torch.device('cpu')
-    
+    opt.device = torch.device('cuda') if opt.gpus[0] >= 0 else torch.device('cpu')
     print('Creating model...')
     self.model = create_model(
       opt.arch, opt.heads, opt.head_conv, opt=opt)
@@ -75,10 +71,10 @@ class Detector(object):
       image = image_or_path_or_tensor['image'][0].numpy()
       pre_processed_images = image_or_path_or_tensor
       pre_processed = True
-    
+
     loaded_time = time.time()
     load_time += (loaded_time - start_time)
-    
+
     detections = []
 
     # for multi-scale testing
@@ -96,7 +92,7 @@ class Detector(object):
           meta['pre_dets'] = pre_processed_images['meta']['pre_dets']
         if 'cur_dets' in pre_processed_images['meta']:
           meta['cur_dets'] = pre_processed_images['meta']['cur_dets']
-      
+
       images = images.to(self.opt.device, non_blocking=self.opt.non_block_test)
 
       # initializing tracker
@@ -117,7 +113,7 @@ class Detector(object):
           # the current image.
           self.pre_hms = self._get_additional_inputs(
             self.tracker.tracks, meta, with_hm=not self.opt.zero_pre_hm)
-      
+
       pre_process_time = time.time()
       pre_time += pre_process_time - scale_start_time
 
@@ -129,7 +125,7 @@ class Detector(object):
       net_time += forward_time - pre_process_time
       decode_time = time.time()
       dec_time += decode_time - forward_time
-      
+
       # convert the cropped and 4x downsampled output coordinate system
       # back to the input image coordinate system
       result = self.post_process(dets, meta, scale, output)
@@ -148,7 +144,7 @@ class Detector(object):
     torch.cuda.synchronize()
     end_time = time.time()
     merge_time += end_time - post_process_time
-    
+
     if self.opt.tracking:
       public_det = meta['cur_dets'] if self.opt.public_det else None
       results = self.tracker.step(results, public_det)
@@ -179,7 +175,7 @@ class Detector(object):
     if self.opt.save_video:
       try:
         # return debug image for saving video
-        ret.update({'generic': self.debugger.imgs['generic']})
+        ret['generic'] = self.debugger.imgs['generic']
       except:
         pass
     return ret
@@ -191,7 +187,7 @@ class Detector(object):
         Currently support: fix short size/ center crop to a fixed size/ 
         keep original resolution but pad to a multiplication of 32
     '''
-    height, width = image.shape[0:2]
+    height, width = image.shape[:2]
     new_height = int(height * scale)
     new_width  = int(width * scale)
     if self.opt.fix_short > 0:
@@ -304,10 +300,9 @@ class Detector(object):
 
 
   def _get_default_calib(self, width, height):
-    calib = np.array([[self.rest_focal_length, 0, width / 2, 0], 
+    return np.array([[self.rest_focal_length, 0, width / 2, 0], 
                         [0, self.rest_focal_length, height / 2, 0], 
                         [0, 0, 1, 0]])
-    return calib
 
 
   def _sigmoid_output(self, output):
@@ -328,19 +323,19 @@ class Detector(object):
       'hp_offset', 'rot', 'tracking', 'pre_hm', 'embedding']
     for head in output:
       if head in average_flips:
-        output[head] = (output[head][0:1] + flip_tensor(output[head][1:2])) / 2
+        output[head] = (output[head][:1] + flip_tensor(output[head][1:2])) / 2
       if head in neg_average_flips:
         flipped_tensor = flip_tensor(output[head][1:2])
         flipped_tensor[:, 0::2] *= -1
-        output[head] = (output[head][0:1] + flipped_tensor) / 2
+        output[head] = (output[head][:1] + flipped_tensor) / 2
       if head in single_flips:
-        output[head] = output[head][0:1]
+        output[head] = output[head][:1]
       if head == 'hps':
-        output['hps'] = (output['hps'][0:1] + 
-          flip_lr_off(output['hps'][1:2], self.flip_idx)) / 2
+        output['hps'] = ((output['hps'][:1] + flip_lr_off(output['hps'][1:2],
+                                                          self.flip_idx))) / 2
       if head == 'hm_hp':
-        output['hm_hp'] = (output['hm_hp'][0:1] + \
-          flip_lr(output['hm_hp'][1:2], self.flip_idx)) / 2
+        output['hm_hp'] = ((output['hm_hp'][:1] + flip_lr(output['hm_hp'][1:2],
+                                                          self.flip_idx))) / 2
 
     return output
 
@@ -374,10 +369,7 @@ class Detector(object):
         dets[k] = dets[k].detach().cpu().numpy()
 
 
-    if return_time:
-      return output, dets, forward_time
-    else:
-      return output, dets
+    return (output, dets, forward_time) if return_time else (output, dets)
 
   def post_process(self, dets, meta, scale=1, output=None):
     dets = generic_post_process(
@@ -396,11 +388,10 @@ class Detector(object):
 
   def merge_outputs(self, detections):
     assert len(self.opt.test_scales) == 1, 'multi_scale not supported!'
-    results = []
-    for i in range(len(detections[0])):
-      if detections[0][i]['score'] > self.opt.out_thresh:
-        results.append(detections[0][i])
-    return results
+    return [
+        detections[0][i] for i in range(len(detections[0]))
+        if detections[0][i]['score'] > self.opt.out_thresh
+    ]
 
   def debug(self, debugger, images, dets, output, scale=1, 
     pre_images=None, pre_hms=None):
@@ -437,8 +428,8 @@ class Detector(object):
       if results[j]['score'] > self.opt.vis_thresh:
         item = results[j]
         if ('bbox' in item):
-          sc = item['score'] if self.opt.demo == '' or \
-            not ('tracking_id' in item) else item['tracking_id']
+          sc = (item['score'] if self.opt.demo == '' or 'tracking_id' not in item
+                else item['tracking_id'])
           sc = item['tracking_id'] if self.opt.show_track_color else sc
 
           debugger.add_coco_bbox(
@@ -448,7 +439,7 @@ class Detector(object):
             debugger.add_coco_seg(mask, item['tracking_id'], img_id='generic', conf=sc)
         # if 'tracking' in item:
         #   debugger.add_arrow(item['ct'], item['tracking'], img_id='generic')
-        
+
         tracking_id = item['tracking_id'] if 'tracking_id' in item else -1
         if 'tracking_id' in item and self.opt.demo == '' and \
           not self.opt.show_track_color:
@@ -475,9 +466,8 @@ class Detector(object):
       debugger.imgs['generic'] = debugger.imgs['ddd_pred']
     if self.opt.debug == 4:
       debugger.save_all_imgs('./vis/', prefix='{}'.format(self.cnt))
-    else:
-      if not self.opt.save_video:
-        debugger.show_all_imgs(pause=self.pause)
+    elif not self.opt.save_video:
+      debugger.show_all_imgs(pause=self.pause)
   
 
   def reset_tracking(self):

@@ -49,9 +49,8 @@ class BasicBlock(nn.Module):
 
 def fill_fc_weights(layers):
     for m in layers.modules():
-        if isinstance(m, nn.Conv2d):
-            if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
+        if isinstance(m, nn.Conv2d) and m.bias is not None:
+            nn.init.constant_(m.bias, 0)
 
 class BaseModel(nn.Module):
     def __init__(self, heads, head_convs, num_stacks, last_channel, opt=None):
@@ -107,9 +106,8 @@ class BaseModel(nn.Module):
                                  kernel_size=head_kernel,
                                  padding=head_kernel // 2, bias=True)
                 convs = [conv]
-                for k in range(1, len(head_conv)):
-                    convs.append(nn.Conv2d(head_conv[k - 1], head_conv[k],
-                                 kernel_size=1, bias=True))
+                convs.extend(nn.Conv2d(head_conv[k - 1], head_conv[k],
+                                 kernel_size=1, bias=True) for k in range(1, len(head_conv)))
                 if len(convs) == 1:
                   fc = nn.Sequential(conv, nn.ReLU(inplace=True), out)
                 elif len(convs) == 2:
@@ -161,50 +159,48 @@ class BaseModel(nn.Module):
       raise NotImplementedError
 
     def forward(self, x, pre_img=None, pre_hm=None, addtional_pre_imgs=None, addtional_pre_hms=None, inference_feats=None):
-      cur_feat = self.img2feats(x)
+        cur_feat = self.img2feats(x)
 
-      assert self.num_stacks == 1
-      if self.opt.trades:
-          feats, embedding, tracking_offset, dis_volume, h_volume_aux, w_volume_aux \
-              = self.TraDeS(cur_feat, pre_img, pre_hm, addtional_pre_imgs, addtional_pre_hms, inference_feats)
-      else:
-          feats = [cur_feat[0]]
+        assert self.num_stacks == 1
+        if self.opt.trades:
+            feats, embedding, tracking_offset, dis_volume, h_volume_aux, w_volume_aux \
+                = self.TraDeS(cur_feat, pre_img, pre_hm, addtional_pre_imgs, addtional_pre_hms, inference_feats)
+        else:
+            feats = [cur_feat[0]]
 
-      out = []
-      if self.opt.model_output_list:
+        out = []
         for s in range(self.num_stacks):
-          z = []
-          for head in sorted(self.heads):
-              z.append(self.__getattr__(head)(feats[s]))
-          out.append(z)
-      else:
-        for s in range(self.num_stacks):
-          z = {}
-          if self.opt.trades:
-              z['embedding'] = embedding
-              z['tracking_offset'] = tracking_offset
-              if not self.opt.inference:
-                  z['h_volume'] = dis_volume[0]
-                  z['w_volume'] = dis_volume[1]
-                  assert len(h_volume_aux) == self.opt.clip_len - 2
-                  for temporal_id in range(2, self.opt.clip_len):
-                      z['h_volume_prev{}'.format(temporal_id)] = h_volume_aux[temporal_id-2]
-                      z['w_volume_prev{}'.format(temporal_id)] = w_volume_aux[temporal_id-2]
-          for head in self.heads:
-              z[head] = self.__getattr__(head)(feats[s])
-          out.append(z)
-      if self.opt.inference:
-          return out, cur_feat[0].detach().cpu().numpy()
-      else:
-          return out
+            if self.opt.model_output_list:
+                z = [self.__getattr__(head)(feats[s]) for head in sorted(self.heads)]
+            else:
+                z = {}
+                if self.opt.trades:
+                    z['embedding'] = embedding
+                    z['tracking_offset'] = tracking_offset
+                    if not self.opt.inference:
+                        z['h_volume'] = dis_volume[0]
+                        z['w_volume'] = dis_volume[1]
+                        assert len(h_volume_aux) == self.opt.clip_len - 2
+                        for temporal_id in range(2, self.opt.clip_len):
+                            z['h_volume_prev{}'.format(temporal_id)] = h_volume_aux[temporal_id-2]
+                            z['w_volume_prev{}'.format(temporal_id)] = w_volume_aux[temporal_id-2]
+                for head in self.heads:
+                    z[head] = self.__getattr__(head)(feats[s])
+            out.append(z)
+        if self.opt.inference:
+            return out, cur_feat[0].detach().cpu().numpy()
+        else:
+            return out
 
     def TraDeS(self, cur_feat, pre_img, pre_hm, addtional_pre_imgs, addtional_pre_hms, inference_feats):
-        feat_list = []
-        feat_list.append(cur_feat[0])  # current feature
+        feat_list = [cur_feat[0]]
         support_feats = []
         if self.opt.inference:
-            for prev_feat in inference_feats:
-                feat_list.append(torch.from_numpy(prev_feat).to(self.opt.device)[:, :, :, :])
+            feat_list.extend(
+                torch.from_numpy(prev_feat).to(self.opt.device)[:, :, :, :]
+                for prev_feat in inference_feats
+            )
+
             while len(feat_list) < self.opt.clip_len:  # only operate in the initial frame
                 feat_list.append(cur_feat[0])
 
@@ -226,8 +222,6 @@ class BaseModel(nn.Module):
         return self.CVA_MFW(feat_list, support_feats)
 
     def CVA_MFW(self, feat_list, support_feats):
-        prop_feats = []
-        attentions = []
         h_max_for_loss_aux = []
         w_max_for_loss_aux = []
         feat_cur = feat_list[0]
@@ -237,13 +231,13 @@ class BaseModel(nn.Module):
         h_c = int(h_f / 2)
         w_c = int(w_f / 2)
 
-        prop_feats.append(feat_cur)
+        prop_feats = [feat_cur]
         embedding = self.embedconv(feat_cur)
         embedding_prime = self.maxpool_stride2(embedding)
         # (B, 128, H, W) -> (B, H*W, 128):
         embedding_prime = embedding_prime.view(batch_size, self.embed_dim, -1).permute(0, 2, 1)
         attention_cur = self.attention_cur(feat_cur)
-        attentions.append(attention_cur)
+        attentions = [attention_cur]
         for idx, feat_prev in enumerate(feat_list[1:]):
             # Sec. 4.1: Cost Volume based Association
             c_h, c_w, tracking_offset = self.CVA(embedding_prime, feat_prev, batch_size, h_c, w_c)
@@ -266,9 +260,10 @@ class BaseModel(nn.Module):
         adaptive_weights = F.softmax(attentions, dim=1)
         adaptive_weights = torch.split(adaptive_weights, 1, dim=1)  # 3*(B,1,H,W)
         # feature aggregation (MFW)
-        enhanced_feat = 0
-        for i in range(len(adaptive_weights)):
-            enhanced_feat += adaptive_weights[i] * prop_feats[i]
+        enhanced_feat = sum(
+            adaptive_weights[i] * prop_feats[i]
+            for i in range(len(adaptive_weights))
+        )
 
         return [enhanced_feat], embedding, tracking_offset_output, [h_max_for_loss, w_max_for_loss], h_max_for_loss_aux, w_max_for_loss_aux
 
@@ -302,10 +297,7 @@ class BaseModel(nn.Module):
         off_deform = self.gamma(tracking_offset, feat_cur, feat_prev, batch_size, h_f, w_f)
         mask_deform = torch.tensor(np.ones((batch_size, 9, off_deform.shape[2], off_deform.shape[3]),
                                            dtype=np.float32)).to(self.opt.device)
-        # feature propagation
-        prop_feat = self.dcn1_1(support_feat, off_deform, mask_deform)
-
-        return prop_feat
+        return self.dcn1_1(support_feat, off_deform, mask_deform)
 
     def gamma(self, tracking_offset, feat_cur, feat_prev, batch_size, h_f, w_f):
         feat_diff = feat_cur - feat_prev
@@ -343,21 +335,10 @@ class BaseModel(nn.Module):
             ),
         )
         ##########3
-        layers = []
-        layers.append(
-            block(
-                nc,
-                out_ch,
-                stride,
-                downsample
-            )
-        )
-        for i in range(1, num_blocks):
-            layers.append(
-                block(
+        layers = [block(nc, out_ch, stride, downsample)]
+        layers.extend(block(
                     in_ch,
                     out_ch
-                )
-            )
+                ) for _ in range(1, num_blocks))
         self.offset_feats = nn.Sequential(*layers)
         return

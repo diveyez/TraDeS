@@ -67,13 +67,10 @@ cats = ['Pedestrian', 'Car', 'Cyclist', 'Van', 'Truck',  'Person_sitting',
 cat_ids = {cat: i + 1 for i, cat in enumerate(cats)}
 cat_ids['Person'] = cat_ids['Person_sitting']
 
-cat_info = []
-for i, cat in enumerate(cats):
-  cat_info.append({'name': cat, 'id': i + 1})
-
+cat_info = [{'name': cat, 'id': i + 1} for i, cat in enumerate(cats)]
 if __name__ == '__main__':
   for split in SPLITS:
-    ann_dir = DATA_PATH + '/label_02/'
+    ann_dir = f'{DATA_PATH}/label_02/'
     ret = {'images': [], 'annotations': [], "categories": cat_info,
            'videos': []}
     num_images = 0
@@ -81,7 +78,7 @@ if __name__ == '__main__':
       image_id_base = num_images
       video_name = '{:04d}'.format(i)
       ret['videos'].append({'id': i + 1, 'file_name': video_name})
-      ann_dir = 'train'  if not ('test' in split) else split
+      ann_dir = 'train' if 'test' not in split else split
       video_path = DATA_PATH + \
         '/data_tracking_image_2/{}ing/image_02/{}'.format(ann_dir, video_name)
       calib_path = DATA_PATH + 'data_tracking_calib/{}ing/calib/'.format(ann_dir) \
@@ -111,15 +108,15 @@ if __name__ == '__main__':
       # 0 -1 DontCare -1 -1 -10.000000 219.310000 188.490000 245.500000 218.560000 -1000.000000 -1000.000000 -1000.000000 -10.000000 -1.000000 -1.000000 -1.000000
       ann_path = DATA_PATH + 'label_02/{}.txt'.format(video_name)
       anns = open(ann_path, 'r')
-      
+
       if CREATE_HALF_LABEL and 'half' in split:
         label_out_folder = DATA_PATH + 'label_02_{}/'.format(split)
         label_out_path = label_out_folder + '{}.txt'.format(video_name)
         if not os.path.exists(label_out_folder):
           os.mkdir(label_out_folder)
         label_out_file = open(label_out_path, 'w')
-      
-      for ann_ind, txt in enumerate(anns):
+
+      for txt in anns:
         tmp = txt[:-1].split(' ')
         frame_id = int(tmp[0])
         track_id = int(tmp[1])
@@ -133,7 +130,7 @@ if __name__ == '__main__':
         rotation_y = float(tmp[16])
         amodel_center = project_to_image(
           np.array([location[0], location[1] - dim[0] / 2, location[2]], 
-            np.float32).reshape(1, 3), calib)[0].tolist()  
+            np.float32).reshape(1, 3), calib)[0].tolist()
         ann = {'image_id': frame_id + 1 - image_range[0] + image_id_base,
                'id': int(len(ret['annotations']) + 1),
                'category_id': cat_id,
@@ -153,9 +150,9 @@ if __name__ == '__main__':
           out_frame_id = frame_id - image_range[0]
           label_out_file.write('{} {}'.format(
             out_frame_id, txt[txt.find(' ') + 1:]))
-        
+
         ret['annotations'].append(ann)
-      
+
     print("# images: ", len(ret['images']))
     print("# annotations: ", len(ret['annotations']))
     out_dir = '{}/annotations/'.format(DATA_PATH)

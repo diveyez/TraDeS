@@ -276,11 +276,8 @@ class DLA(nn.Module):
                 nn.BatchNorm2d(planes, momentum=BN_MOMENTUM),
             )
 
-        layers = []
-        layers.append(block(inplanes, planes, stride, downsample=downsample))
-        for i in range(1, blocks):
-            layers.append(block(inplanes, planes))
-
+        layers = [block(inplanes, planes, stride, downsample=downsample)]
+        layers.extend(block(inplanes, planes) for _ in range(1, blocks))
         return nn.Sequential(*layers)
 
     def _make_conv_level(self, inplanes, planes, convs, stride=1, dilation=1):

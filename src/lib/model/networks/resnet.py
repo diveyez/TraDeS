@@ -162,12 +162,9 @@ class PoseResNet(nn.Module):
                 nn.BatchNorm2d(planes * block.expansion, momentum=BN_MOMENTUM),
             )
 
-        layers = []
-        layers.append(block(self.inplanes, planes, stride, downsample))
+        layers = [block(self.inplanes, planes, stride, downsample)]
         self.inplanes = planes * block.expansion
-        for i in range(1, blocks):
-            layers.append(block(self.inplanes, planes))
-
+        layers.extend(block(self.inplanes, planes) for _ in range(1, blocks))
         return nn.Sequential(*layers)
 
     def _get_deconv_cfg(self, deconv_kernel, index):
@@ -195,17 +192,22 @@ class PoseResNet(nn.Module):
                 self._get_deconv_cfg(num_kernels[i], i)
 
             planes = num_filters[i]
-            layers.append(
-                nn.ConvTranspose2d(
-                    in_channels=self.inplanes,
-                    out_channels=planes,
-                    kernel_size=kernel,
-                    stride=2,
-                    padding=padding,
-                    output_padding=output_padding,
-                    bias=self.deconv_with_bias))
-            layers.append(nn.BatchNorm2d(planes, momentum=BN_MOMENTUM))
-            layers.append(nn.ReLU(inplace=True))
+            layers.extend(
+                (
+                    nn.ConvTranspose2d(
+                        in_channels=self.inplanes,
+                        out_channels=planes,
+                        kernel_size=kernel,
+                        stride=2,
+                        padding=padding,
+                        output_padding=output_padding,
+                        bias=self.deconv_with_bias,
+                    ),
+                    nn.BatchNorm2d(planes, momentum=BN_MOMENTUM),
+                    nn.ReLU(inplace=True),
+                )
+            )
+
             self.inplanes = planes
 
         return nn.Sequential(*layers)
@@ -227,18 +229,17 @@ class PoseResNet(nn.Module):
                     nn.init.constant_(m.bias, 0)
             # print('=> init final conv weights from normal distribution')
             for head in self.heads:
-              final_layer = self.__getattr__(head)
-              for i, m in enumerate(final_layer.modules()):
-                  if isinstance(m, nn.Conv2d):
-                      # nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-                      # print('=> init {}.weight as normal(0, 0.001)'.format(name))
-                      # print('=> init {}.bias as 0'.format(name))
-                      if m.weight.shape[0] == self.heads[head]:
-                          if 'hm' in head:
-                              nn.init.constant_(m.bias, -2.19)
-                          else:
-                              nn.init.normal_(m.weight, std=0.001)
-                              nn.init.constant_(m.bias, 0)
+                final_layer = self.__getattr__(head)
+                for m in final_layer.modules():
+                    if (
+                        isinstance(m, nn.Conv2d)
+                        and m.weight.shape[0] == self.heads[head]
+                    ):
+                        if 'hm' in head:
+                            nn.init.constant_(m.bias, -2.19)
+                        else:
+                            nn.init.normal_(m.weight, std=0.001)
+                            nn.init.constant_(m.bias, 0)
             #pretrained_state_dict = torch.load(pretrained)
             url = model_urls['resnet{}'.format(num_layers)]
             pretrained_state_dict = model_zoo.load_url(url)

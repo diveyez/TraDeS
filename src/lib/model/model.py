@@ -25,8 +25,7 @@ def create_model(arch, head, head_conv, opt=None):
   num_layers = int(arch[arch.find('_') + 1:]) if '_' in arch else 0
   arch = arch[:arch.find('_')] if '_' in arch else arch
   model_class = _network_factory[arch]
-  model = model_class(num_layers, heads=head, head_convs=head_conv, opt=opt)
-  return model
+  return model_class(num_layers, heads=head, head_convs=head_conv, opt=opt)
 
 def load_model(model, model_path, opt, optimizer=None):
   start_epoch = 0
@@ -34,7 +33,7 @@ def load_model(model, model_path, opt, optimizer=None):
   print('loaded {}, epoch {}'.format(model_path, checkpoint['epoch']))
   state_dict_ = checkpoint['state_dict']
   state_dict = {}
-   
+
   # convert data_parallal to model
   for k in state_dict_:
     if k.startswith('module') and not k.startswith('module_list'):
@@ -44,10 +43,11 @@ def load_model(model, model_path, opt, optimizer=None):
   model_state_dict = model.state_dict()
 
   # check loaded parameters and created model parameters
-  for k in state_dict:
+  for k, v in state_dict.items():
     if k in model_state_dict:
-      if (state_dict[k].shape != model_state_dict[k].shape) or \
-        (opt.reset_hm and k.startswith('hm') and (state_dict[k].shape[0] in [80, 1])):
+      if v.shape != model_state_dict[k].shape or (
+          opt.reset_hm and k.startswith('hm') and
+          (state_dict[k].shape[0] in [80, 1])):
         if opt.reuse_hm:
           print('Reusing parameter {}, required shape{}, '\
                 'loaded shape{}.'.format(
@@ -56,17 +56,15 @@ def load_model(model, model_path, opt, optimizer=None):
             model_state_dict[k][:state_dict[k].shape[0]] = state_dict[k]
           else:
             model_state_dict[k] = state_dict[k][:model_state_dict[k].shape[0]]
-          state_dict[k] = model_state_dict[k]
         else:
           print('Skip loading parameter {}, required shape{}, '\
                 'loaded shape{}.'.format(
             k, model_state_dict[k].shape, state_dict[k].shape))
-          state_dict[k] = model_state_dict[k]
-    else:
-      if 'tracking' not in k:
-        print('Drop parameter {}.'.format(k))
+        state_dict[k] = model_state_dict[k]
+    elif 'tracking' not in k:
+      print('Drop parameter {}.'.format(k))
   for k in model_state_dict:
-    if not (k in state_dict):
+    if k not in state_dict:
       print('No param {}.'.format(k))
       state_dict[k] = model_state_dict[k]
   model.load_state_dict(state_dict, strict=False)
@@ -85,10 +83,7 @@ def load_model(model, model_path, opt, optimizer=None):
       print('Resumed optimizer with start lr', start_lr)
     else:
       print('No optimizer parameters in checkpoint.')
-  if optimizer is not None:
-    return model, optimizer, start_epoch
-  else:
-    return model
+  return (model, optimizer, start_epoch) if optimizer is not None else model
 
 def save_model(path, epoch, model, optimizer=None):
   if isinstance(model, torch.nn.DataParallel):
@@ -97,7 +92,7 @@ def save_model(path, epoch, model, optimizer=None):
     state_dict = model.state_dict()
   data = {'epoch': epoch,
           'state_dict': state_dict}
-  if not (optimizer is None):
+  if optimizer is not None:
     data['optimizer'] = optimizer.state_dict()
   torch.save(data, path)
 
