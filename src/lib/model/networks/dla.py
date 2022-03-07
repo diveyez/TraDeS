@@ -264,11 +264,8 @@ class DLA(nn.Module):
                 nn.BatchNorm2d(planes, momentum=BN_MOMENTUM),
             )
 
-        layers = []
-        layers.append(block(inplanes, planes, stride, downsample=downsample))
-        for i in range(1, blocks):
-            layers.append(block(inplanes, planes))
-
+        layers = [block(inplanes, planes, stride, downsample=downsample)]
+        layers.extend(block(inplanes, planes) for _ in range(1, blocks))
         return nn.Sequential(*layers)
 
     def _make_conv_level(self, inplanes, planes, convs, stride=1, dilation=1):
@@ -427,9 +424,8 @@ class Identity(nn.Module):
 
 def fill_fc_weights(layers):
     for m in layers.modules():
-        if isinstance(m, nn.Conv2d):
-            if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
+        if isinstance(m, nn.Conv2d) and m.bias is not None:
+            nn.init.constant_(m.bias, 0)
 
 
 def fill_up_weights(up):
@@ -503,26 +499,26 @@ class IDAUp(nn.Module):
         super(IDAUp, self).__init__()
         for i in range(1, len(channels)):
             c = channels[i]
-            f = int(up_f[i])  
+            f = int(up_f[i])
             proj = node_type[0](c, o)
             node = node_type[1](o, o)
-     
+
             up = nn.ConvTranspose2d(o, o, f * 2, stride=f, 
                                     padding=f // 2, output_padding=0,
                                     groups=o, bias=False)
             fill_up_weights(up)
 
-            setattr(self, 'proj_' + str(i), proj)
-            setattr(self, 'up_' + str(i), up)
-            setattr(self, 'node_' + str(i), node)
+            setattr(self, f'proj_{str(i)}', proj)
+            setattr(self, f'up_{str(i)}', up)
+            setattr(self, f'node_{str(i)}', node)
                  
         
     def forward(self, layers, startp, endp):
         for i in range(startp + 1, endp):
-            upsample = getattr(self, 'up_' + str(i - startp))
-            project = getattr(self, 'proj_' + str(i - startp))
+            upsample = getattr(self, f'up_{str(i - startp)}')
+            project = getattr(self, f'proj_{str(i - startp)}')
             layers[i] = upsample(project(layers[i]))
-            node = getattr(self, 'node_' + str(i - startp))
+            node = getattr(self, f'node_{str(i - startp)}')
             layers[i] = node(layers[i] + layers[i - 1])
 
 
@@ -602,9 +598,7 @@ class DLASeg(BaseModel):
         x = self.base(x)
         x = self.dla_up(x)
 
-        y = []
-        for i in range(self.last_level - self.first_level):
-            y.append(x[i].clone())
+        y = [x[i].clone() for i in range(self.last_level - self.first_level)]
         self.ida_up(y, 0, len(y))
 
         return [y[-1]]
@@ -613,9 +607,7 @@ class DLASeg(BaseModel):
         x = self.base(x, pre_img, pre_hm)
         x = self.dla_up(x)
 
-        y = []
-        for i in range(self.last_level - self.first_level):
-            y.append(x[i].clone())
+        y = [x[i].clone() for i in range(self.last_level - self.first_level)]
         self.ida_up(y, 0, len(y))
 
         return [y[-1]]
@@ -624,9 +616,7 @@ class DLASeg(BaseModel):
         x = self.base(x)
         x = self.dla_up(x)
 
-        y = []
-        for i in range(self.last_level - self.first_level):
-            y.append(x[i].clone())
+        y = [x[i].clone() for i in range(self.last_level - self.first_level)]
         self.ida_up(y, 0, len(y))
 
         return [y[-1].detach()]

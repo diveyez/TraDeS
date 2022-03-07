@@ -77,12 +77,12 @@ class nuScenes(GenericDataset):
       if type(all_bboxes[image_id]) != type({}):
         # newest format
         for j in range(len(all_bboxes[image_id])):
-          item = all_bboxes[image_id][j]   
+          item = all_bboxes[image_id][j]
           category_id = citem['class']
           bbox = item['bbox']
           bbox[2] -= bbox[0]
           bbox[3] -= bbox[1]
-          bbox_out  = list(map(self._to_float, bbox[0:4]))
+          bbox_out = list(map(self._to_float, bbox[:4]))
           detection = {
               "image_id": int(image_id),
               "category_id": int(category_id),
@@ -99,7 +99,7 @@ class nuScenes(GenericDataset):
       'use_map': False, 'use_external': False}, 'results': {}}
     print('Converting nuscenes format...')
     for image_id in self.images:
-      if not (image_id in results):
+      if image_id not in results:
         continue
       image_info = self.coco.loadImgs(ids=[image_id])[0]
       sample_token = image_info['sample_token']
@@ -107,12 +107,12 @@ class nuScenes(GenericDataset):
       sensor_id = image_info['sensor_id']
       sample_results = []
       for item in results[image_id]:
-        class_name = self.class_name[int(item['class'] - 1)] \
-            if not ('detection_name' in item) else item['detection_name']
+        class_name = (self.class_name[int(item['class'] - 1)] if
+                      'detection_name' not in item else item['detection_name'])
         if self.opt.tracking and class_name in self._tracking_ignored_class:
           continue
-        score = float(item['score']) \
-            if not ('detection_score' in item) else item['detection_score']
+        score = (float(item['score'])
+                 if 'detection_score' not in item else item['detection_score'])
         if 'size' in item:
           size = item['size']
         else:
@@ -127,8 +127,8 @@ class nuScenes(GenericDataset):
 
         det_id = item['det_id'] if 'det_id' in item else -1
         tracking_id = item['tracking_id'] if 'tracking_id' in item else 1
-        
-        if not ('rotation' in item):
+
+        if 'rotation' not in item:
           rot_cam = Quaternion(
             axis=[0, 1, 0], angle=item['rot_y'])
           loc = np.array(
@@ -143,13 +143,13 @@ class nuScenes(GenericDataset):
           rotation = [float(rotation.w), float(rotation.x), \
             float(rotation.y), float(rotation.z)]
         else:
-           rotation = item['rotation']
-        
+          rotation = item['rotation']
+
         nuscenes_att = np.array(item['nuscenes_att'], np.float32) \
           if 'nuscenes_att' in item else np.zeros(8, np.float32)
         att = ''
         if class_name in self._cycles:
-          att = self.id_to_attribute[np.argmax(nuscenes_att[0:2]) + 1]
+          att = self.id_to_attribute[np.argmax(nuscenes_att[:2]) + 1]
         elif class_name in self._pedestrians:
           att = self.id_to_attribute[np.argmax(nuscenes_att[2:5]) + 3]
         elif class_name in self._vehicles:
@@ -162,21 +162,36 @@ class nuScenes(GenericDataset):
             [velocity[0], velocity[1], velocity[2], 0], np.float32))
           velocity = [float(velocity[0]), float(velocity[1])]
         result = {
-          'sample_token': sample_token, 
-          'translation': [float(translation[0]), float(translation[1]), \
-            float(translation[2])],
-          'size': size,
-          'rotation': rotation,
-          'velocity': velocity,
-          'detection_name': class_name,
-          'attribute_name': att \
-            if not ('attribute_name' in item) else item['attribute_name'],
-          'detection_score': score,
-          'tracking_name': class_name,
-          'tracking_score': score,
-          'tracking_id': tracking_id,
-          'sensor_id': sensor_id,
-          'det_id': det_id}
+            'sample_token':
+            sample_token,
+            'translation': [
+                float(translation[0]),
+                float(translation[1]),
+                float(translation[2]),
+            ],
+            'size':
+            size,
+            'rotation':
+            rotation,
+            'velocity':
+            velocity,
+            'detection_name':
+            class_name,
+            'attribute_name':
+            att if 'attribute_name' not in item else item['attribute_name'],
+            'detection_score':
+            score,
+            'tracking_name':
+            class_name,
+            'tracking_score':
+            score,
+            'tracking_id':
+            tracking_id,
+            'sensor_id':
+            sensor_id,
+            'det_id':
+            det_id,
+        }
 
         sample_results.append(result)
       if sample_token in ret['results']:

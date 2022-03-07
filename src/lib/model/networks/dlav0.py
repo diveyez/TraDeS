@@ -275,11 +275,8 @@ class DLA(nn.Module):
                 BatchNorm(planes),
             )
 
-        layers = []
-        layers.append(block(inplanes, planes, stride, downsample=downsample))
-        for i in range(1, blocks):
-            layers.append(block(inplanes, planes))
-
+        layers = [block(inplanes, planes, stride, downsample=downsample)]
+        layers.extend(block(inplanes, planes) for _ in range(1, blocks))
         return nn.Sequential(*layers)
 
     def _make_conv_level(self, inplanes, planes, convs, stride=1, dilation=1):
@@ -459,8 +456,8 @@ class IDAUp(nn.Module):
                     out_dim, out_dim, f * 2, stride=f, padding=f // 2,
                     output_padding=0, groups=out_dim, bias=False)
                 fill_up_weights(up)
-            setattr(self, 'proj_' + str(i), proj)
-            setattr(self, 'up_' + str(i), up)
+            setattr(self, f'proj_{str(i)}', proj)
+            setattr(self, f'up_{str(i)}', up)
 
         for i in range(1, len(channels)):
             node = nn.Sequential(
@@ -469,7 +466,7 @@ class IDAUp(nn.Module):
                           padding=node_kernel // 2, bias=False),
                 BatchNorm(out_dim),
                 nn.ReLU(inplace=True))
-            setattr(self, 'node_' + str(i), node)
+            setattr(self, f'node_{str(i)}', node)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -484,13 +481,13 @@ class IDAUp(nn.Module):
             '{} vs {} layers'.format(len(self.channels), len(layers))
         layers = list(layers)
         for i, l in enumerate(layers):
-            upsample = getattr(self, 'up_' + str(i))
-            project = getattr(self, 'proj_' + str(i))
+            upsample = getattr(self, f'up_{str(i)}')
+            project = getattr(self, f'proj_{str(i)}')
             layers[i] = upsample(project(l))
         x = layers[0]
         y = []
         for i in range(1, len(layers)):
-            node = getattr(self, 'node_' + str(i))
+            node = getattr(self, f'node_{str(i)}')
             x = node(torch.cat([x, layers[i]], 1))
             y.append(x)
         return x, y

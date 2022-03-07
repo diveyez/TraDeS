@@ -18,8 +18,7 @@ def comput_corners_3d(dim, rotation_y):
   z_corners = [w/2, -w/2, -w/2, w/2, w/2, -w/2, -w/2, w/2]
 
   corners = np.array([x_corners, y_corners, z_corners], dtype=np.float32)
-  corners_3d = np.dot(R, corners).transpose(1, 0)
-  return corners_3d
+  return np.dot(R, corners).transpose(1, 0)
 
 def compute_box_3d(dim, location, rotation_y):
   # dim: 3
@@ -96,8 +95,7 @@ def unproject_2d_to_3d(pt_2d, depth, P):
   z = depth - P[2, 3]
   x = (pt_2d[0] * depth - P[0, 3] - P[0, 2] * z) / P[0, 0]
   y = (pt_2d[1] * depth - P[1, 3] - P[1, 2] * z) / P[1, 1]
-  pt_3d = np.array([x, y, z], dtype=np.float32).reshape(3)
-  return pt_3d
+  return np.array([x, y, z], dtype=np.float32).reshape(3)
 
 def alpha2rot_y(alpha, x, cx, fx):
     """
@@ -137,8 +135,7 @@ def ddd2locrot(center, alpha, dim, depth, calib):
 
 def project_3d_bbox(location, dim, rotation_y, calib):
   box_3d = compute_box_3d(dim, location, rotation_y)
-  box_2d = project_to_image(box_3d, calib)
-  return box_2d
+  return project_to_image(box_3d, calib)
 
 
 if __name__ == '__main__':

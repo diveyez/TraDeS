@@ -153,17 +153,26 @@ def check_gradient_dpooling():
     sample_per_part = 4
     part_size = pooled_size
 
-    print('check_gradient_dpooling:',
-          gradcheck(dcn_v2_pooling, (input, rois, offset,
-                                     spatial_scale,
-                                     pooled_size,
-                                     output_dim,
-                                     no_trans,
-                                     group_size,
-                                     part_size,
-                                     sample_per_part,
-                                     trans_std),
-                    eps=1e-4))
+    print(
+        'check_gradient_dpooling:',
+        gradcheck(
+            dcn_v2_pooling,
+            (
+                input,
+                rois,
+                offset,
+                spatial_scale,
+                part_size,
+                output_dim,
+                no_trans,
+                group_size,
+                part_size,
+                sample_per_part,
+                trans_std,
+            ),
+            eps=1e-4,
+        ),
+    )
 
 
 def example_dconv():

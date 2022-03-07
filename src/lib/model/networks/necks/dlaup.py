@@ -31,10 +31,9 @@ class Identity(nn.Module):
 
 
 def fill_fc_weights(layers):
-    for m in layers.modules():
-        if isinstance(m, nn.Conv2d):
-            if m.bias is not None:
-                nn.init.constant_(m.bias, 0)
+  for m in layers.modules():
+    if isinstance(m, nn.Conv2d) and m.bias is not None:
+      nn.init.constant_(m.bias, 0)
 
 
 def fill_up_weights(up):
@@ -106,30 +105,30 @@ class DeformConv(nn.Module):
 
 class IDAUp(nn.Module):
     def __init__(self, o, channels, up_f, node_type=(DeformConv, DeformConv)):
-        super(IDAUp, self).__init__()
-        for i in range(1, len(channels)):
-            c = channels[i]
-            f = int(up_f[i])  
-            proj = node_type[0](c, o)
-            node = node_type[1](o, o)
-     
-            up = nn.ConvTranspose2d(o, o, f * 2, stride=f, 
-                                    padding=f // 2, output_padding=0,
-                                    groups=o, bias=False)
-            fill_up_weights(up)
+      super(IDAUp, self).__init__()
+      for i in range(1, len(channels)):
+        c = channels[i]
+        f = int(up_f[i])
+        proj = node_type[0](c, o)
+        node = node_type[1](o, o)
 
-            setattr(self, 'proj_' + str(i), proj)
-            setattr(self, 'up_' + str(i), up)
-            setattr(self, 'node_' + str(i), node)
+        up = nn.ConvTranspose2d(o, o, f * 2, stride=f, 
+                                padding=f // 2, output_padding=0,
+                                groups=o, bias=False)
+        fill_up_weights(up)
+
+        setattr(self, f'proj_{str(i)}', proj)
+        setattr(self, f'up_{str(i)}', up)
+        setattr(self, f'node_{str(i)}', node)
                  
         
     def forward(self, layers, startp, endp):
-        for i in range(startp + 1, endp):
-            upsample = getattr(self, 'up_' + str(i - startp))
-            project = getattr(self, 'proj_' + str(i - startp))
-            layers[i] = upsample(project(layers[i]))
-            node = getattr(self, 'node_' + str(i - startp))
-            layers[i] = node(layers[i] + layers[i - 1])
+      for i in range(startp + 1, endp):
+        upsample = getattr(self, f'up_{str(i - startp)}')
+        project = getattr(self, f'proj_{str(i - startp)}')
+        layers[i] = upsample(project(layers[i]))
+        node = getattr(self, f'node_{str(i - startp)}')
+        layers[i] = node(layers[i] + layers[i - 1])
 
 
 
@@ -190,10 +189,8 @@ class DLASeg(nn.Module):
         
 
     def forward(self, x):
-        x = self.dla_up(x)
-        y = []
-        for i in range(self.last_level - self.first_level):
-            y.append(x[i].clone())
-        self.ida_up(y, 0, len(y))
+      x = self.dla_up(x)
+      y = [x[i].clone() for i in range(self.last_level - self.first_level)]
+      self.ida_up(y, 0, len(y))
 
-        return [y[-1]]
+      return [y[-1]]

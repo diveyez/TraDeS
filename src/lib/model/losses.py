@@ -33,9 +33,9 @@ def _slow_neg_loss(pred, gt):
   neg_loss = neg_loss.sum()
 
   if pos_pred.nelement() == 0:
-    loss = loss - neg_loss
+    loss -= neg_loss
   else:
-    loss = loss - (pos_loss + neg_loss) / num_pos
+    loss -= (pos_loss + neg_loss) / num_pos
   return loss
 
 def _neg_loss(pred, gt):
@@ -57,10 +57,7 @@ def _neg_loss(pred, gt):
   num_pos  = pos_inds.float().sum()
   pos_loss = pos_loss.sum()
   neg_loss = neg_loss.sum()
-  if num_pos == 0:
-    loss = loss - neg_loss
-  else:
-    loss = loss - (pos_loss + neg_loss) / num_pos
+  loss -= neg_loss if num_pos == 0 else (pos_loss + neg_loss) / num_pos
   return loss
 
 
@@ -173,8 +170,7 @@ class BinRotLoss(nn.Module):
   
   def forward(self, output, mask, ind, rotbin, rotres):
     pred = _tranpose_and_gather_feat(output, ind)
-    loss = compute_rot_loss(pred, rotbin, rotres, mask)
-    return loss
+    return compute_rot_loss(pred, rotbin, rotres, mask)
 
 def compute_res_loss(output, target):
     return F.smooth_l1_loss(output, target, reduction='elementwise_mean')

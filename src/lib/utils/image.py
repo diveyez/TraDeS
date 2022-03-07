@@ -40,35 +40,31 @@ def get_affine_transform(center,
                          output_size,
                          shift=np.array([0, 0], dtype=np.float32),
                          inv=0):
-    if not isinstance(scale, np.ndarray) and not isinstance(scale, list):
-        scale = np.array([scale, scale], dtype=np.float32)
-    # print(center, scale, rot, output_size)
+  if not isinstance(scale, np.ndarray) and not isinstance(scale, list):
+      scale = np.array([scale, scale], dtype=np.float32)
+  # print(center, scale, rot, output_size)
 
-    scale_tmp = scale
-    src_w = scale_tmp[0]
-    dst_w = output_size[0]
-    dst_h = output_size[1]
+  scale_tmp = scale
+  src_w = scale_tmp[0]
+  dst_w = output_size[0]
+  dst_h = output_size[1]
 
-    rot_rad = np.pi * rot / 180
-    src_dir = get_dir([0, src_w * -0.5], rot_rad)
-    dst_dir = np.array([0, dst_w * -0.5], np.float32)
+  rot_rad = np.pi * rot / 180
+  src_dir = get_dir([0, src_w * -0.5], rot_rad)
+  dst_dir = np.array([0, dst_w * -0.5], np.float32)
 
-    src = np.zeros((3, 2), dtype=np.float32)
-    dst = np.zeros((3, 2), dtype=np.float32)
-    src[0, :] = center + scale_tmp * shift
-    src[1, :] = center + src_dir + scale_tmp * shift
-    dst[0, :] = [dst_w * 0.5, dst_h * 0.5]
-    dst[1, :] = np.array([dst_w * 0.5, dst_h * 0.5], np.float32) + dst_dir
+  src = np.zeros((3, 2), dtype=np.float32)
+  dst = np.zeros((3, 2), dtype=np.float32)
+  src[0, :] = center + scale_tmp * shift
+  src[1, :] = center + src_dir + scale_tmp * shift
+  dst[0, :] = [dst_w * 0.5, dst_h * 0.5]
+  dst[1, :] = np.array([dst_w * 0.5, dst_h * 0.5], np.float32) + dst_dir
 
-    src[2:, :] = get_3rd_point(src[0, :], src[1, :])
-    dst[2:, :] = get_3rd_point(dst[0, :], dst[1, :])
+  src[2:, :] = get_3rd_point(src[0, :], src[1, :])
+  dst[2:, :] = get_3rd_point(dst[0, :], dst[1, :])
 
-    if inv:
-        trans = cv2.getAffineTransform(np.float32(dst), np.float32(src))
-    else:
-        trans = cv2.getAffineTransform(np.float32(src), np.float32(dst))
-
-    return trans
+  return (cv2.getAffineTransform(np.float32(dst), np.float32(src))
+          if inv else cv2.getAffineTransform(np.float32(src), np.float32(dst)))
 
 
 def affine_transform(pt, t):
@@ -93,14 +89,12 @@ def get_dir(src_point, rot_rad):
 
 
 def crop(img, center, scale, output_size, rot=0):
-    trans = get_affine_transform(center, scale, rot, output_size)
+  trans = get_affine_transform(center, scale, rot, output_size)
 
-    dst_img = cv2.warpAffine(img,
+  return cv2.warpAffine(img,
                              trans,
                              (int(output_size[0]), int(output_size[1])),
                              flags=cv2.INTER_LINEAR)
-
-    return dst_img
 
 # @numba.jit(nopython=True, nogil=True)
 def gaussian_radius(det_size, min_overlap=0.7):
@@ -140,11 +134,11 @@ def draw_umich_gaussian(heatmap, center, radius, k=1):
   # import pdb; pdb.set_trace()
   diameter = 2 * radius + 1
   gaussian = gaussian2D((diameter, diameter), sigma=diameter / 6)
-  
+
   x, y = int(center[0]), int(center[1])
 
-  height, width = heatmap.shape[0:2]
-    
+  height, width = heatmap.shape[:2]
+
   left, right = min(x, radius), min(width - x, radius + 1)
   top, bottom = min(y, radius), min(height - y, radius + 1)
   # import pdb; pdb.set_trace()
@@ -156,22 +150,22 @@ def draw_umich_gaussian(heatmap, center, radius, k=1):
 
 
 def draw_umich_gaussian_1d(heatmap, center, radius, k=1):
-    # import pdb; pdb.set_trace()
-    diameter = 2 * radius + 1
-    gaussian = gaussian2D((diameter, diameter), sigma=diameter / 6)
+  # import pdb; pdb.set_trace()
+  diameter = 2 * radius + 1
+  gaussian = gaussian2D((diameter, diameter), sigma=diameter / 6)
 
-    x, y = int(center[0]), int(center[1])
+  x, y = int(center[0]), int(center[1])
 
-    height, width = heatmap.shape[0:2]
+  height, width = heatmap.shape[:2]
 
-    left, right = min(x, radius), min(width - x, radius + 1)
-    top, bottom = min(y, radius), min(height - y, radius + 1)
-    # import pdb; pdb.set_trace()
-    masked_heatmap = heatmap[y - top:y + bottom, x - left:x + right]
-    masked_gaussian = gaussian[radius - top:radius + bottom, radius - left:radius + right]
-    if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0:  # TODO debug
-        np.maximum(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
-    return heatmap
+  left, right = min(x, radius), min(width - x, radius + 1)
+  top, bottom = min(y, radius), min(height - y, radius + 1)
+  # import pdb; pdb.set_trace()
+  masked_heatmap = heatmap[y - top:y + bottom, x - left:x + right]
+  masked_gaussian = gaussian[radius - top:radius + bottom, radius - left:radius + right]
+  if min(masked_gaussian.shape) > 0 and min(masked_heatmap.shape) > 0:  # TODO debug
+      np.maximum(masked_heatmap, masked_gaussian * k, out=masked_heatmap)
+  return heatmap
 
 def draw_dense_reg(regmap, heatmap, center, value, radius, is_offset=False):
   diameter = 2 * radius + 1
@@ -183,11 +177,11 @@ def draw_dense_reg(regmap, heatmap, center, value, radius, is_offset=False):
     delta = np.arange(diameter*2+1) - radius
     reg[0] = reg[0] - delta.reshape(1, -1)
     reg[1] = reg[1] - delta.reshape(-1, 1)
-  
+
   x, y = int(center[0]), int(center[1])
 
-  height, width = heatmap.shape[0:2]
-    
+  height, width = heatmap.shape[:2]
+
   left, right = min(x, radius), min(width - x, radius + 1)
   top, bottom = min(y, radius), min(height - y, radius + 1)
 

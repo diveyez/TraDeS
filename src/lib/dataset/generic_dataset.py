@@ -56,7 +56,7 @@ class GenericDataset(data.Dataset):
       self.split = split
       self.opt = opt
       self._data_rng = np.random.RandomState(123)
-    
+
     if ann_path is not None and img_dir is not None:
       print('==> initializing {} data from {}, \n images from {} ...'.format(
         split, ann_path, img_dir))
@@ -64,13 +64,13 @@ class GenericDataset(data.Dataset):
       self.images = self.coco.getImgIds()
 
       if opt.tracking:
-        if not ('videos' in self.coco.dataset):
+        if 'videos' not in self.coco.dataset:
           self.fake_video_data()
         print('Creating video index!')
         self.video_to_images = defaultdict(list)
         for image in self.coco.dataset['images']:
           self.video_to_images[image['video_id']].append(image)
-      
+
       self.img_dir = img_dir
 
   def __getitem__(self, index):
@@ -204,10 +204,9 @@ class GenericDataset(data.Dataset):
 
 
   def get_default_calib(self, width, height):
-    calib = np.array([[self.rest_focal_length, 0, width / 2, 0], 
+    return np.array([[self.rest_focal_length, 0, width / 2, 0], 
                         [0, self.rest_focal_length, height / 2, 0], 
                         [0, 0, 1, 0]])
-    return calib
 
   def _load_image_anns(self, img_id, coco, img_dir):
     img_info = coco.loadImgs(ids=[img_id])[0]
@@ -231,10 +230,11 @@ class GenericDataset(data.Dataset):
     # If training, random sample nearby frames as the "previoud" frame
     # If testing, get the exact prevous frame
     if 'train' in self.split:
-      img_ids = [(img_info['id'], img_info['frame_id']) \
-          for img_info in img_infos \
-          if abs(img_info['frame_id'] - frame_id) < self.opt.max_frame_dist and \
-          (not ('sensor_id' in img_info) or img_info['sensor_id'] == sensor_id)]
+      img_ids = [
+          (img_info['id'], img_info['frame_id']) for img_info in img_infos
+          if abs(img_info['frame_id'] - frame_id) < self.opt.max_frame_dist and (
+              'sensor_id' not in img_info or img_info['sensor_id'] == sensor_id)
+      ]
     rand_ids = np.empty((num_frames), dtype=np.int)
     rand_id = np.random.choice(len(img_ids))
     rand_ids[0] = rand_id

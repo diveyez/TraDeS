@@ -59,34 +59,33 @@ class KITTI(GenericDataset):
       os.mkdir(results_dir)
     for img_id in results.keys():
       out_path = os.path.join(results_dir, '{:06d}.txt'.format(img_id))
-      f = open(out_path, 'w')
-      for i in range(len(results[img_id])):
-        item = results[img_id][i]
-        category_id = item['class']
-        cls_name_ind = category_id
-        class_name = self.class_name[cls_name_ind - 1]
-        if not ('alpha' in item):
-          item['alpha'] = -1
-        if not ('rot_y' in item):
-          item['rot_y'] = -1
-        if 'dim' in item:
-          item['dim'] = [max(item['dim'][0], 0.01), 
-            max(item['dim'][1], 0.01), max(item['dim'][2], 0.01)]
-        if not ('dim' in item):
-          item['dim'] = [-1000, -1000, -1000]
-        if not ('loc' in item):
-          item['loc'] = [-1000, -1000, -1000]
-        f.write('{} 0.0 0'.format(class_name))
-        f.write(' {:.2f}'.format(item['alpha']))
-        f.write(' {:.2f} {:.2f} {:.2f} {:.2f}'.format(
-          item['bbox'][0], item['bbox'][1], item['bbox'][2], item['bbox'][3]))
-        
-        f.write(' {:.2f} {:.2f} {:.2f}'.format(
-          item['dim'][0], item['dim'][1], item['dim'][2]))
-        f.write(' {:.2f} {:.2f} {:.2f}'.format(
-          item['loc'][0], item['loc'][1], item['loc'][2]))
-        f.write(' {:.2f} {:.2f}\n'.format(item['rot_y'], item['score']))
-      f.close()
+      with open(out_path, 'w') as f:
+        for i in range(len(results[img_id])):
+          item = results[img_id][i]
+          category_id = item['class']
+          cls_name_ind = category_id
+          class_name = self.class_name[cls_name_ind - 1]
+          if 'alpha' not in item:
+            item['alpha'] = -1
+          if 'rot_y' not in item:
+            item['rot_y'] = -1
+          if 'dim' in item:
+            item['dim'] = [max(item['dim'][0], 0.01), 
+              max(item['dim'][1], 0.01), max(item['dim'][2], 0.01)]
+          if 'dim' not in item:
+            item['dim'] = [-1000, -1000, -1000]
+          if 'loc' not in item:
+            item['loc'] = [-1000, -1000, -1000]
+          f.write('{} 0.0 0'.format(class_name))
+          f.write(' {:.2f}'.format(item['alpha']))
+          f.write(' {:.2f} {:.2f} {:.2f} {:.2f}'.format(
+            item['bbox'][0], item['bbox'][1], item['bbox'][2], item['bbox'][3]))
+
+          f.write(' {:.2f} {:.2f} {:.2f}'.format(
+            item['dim'][0], item['dim'][1], item['dim'][2]))
+          f.write(' {:.2f} {:.2f} {:.2f}'.format(
+            item['loc'][0], item['loc'][1], item['loc'][2]))
+          f.write(' {:.2f} {:.2f}\n'.format(item['rot_y'], item['score']))
 
   def run_eval(self, results, save_dir):
     # import pdb; pdb.set_trace()

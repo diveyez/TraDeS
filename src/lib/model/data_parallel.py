@@ -119,10 +119,10 @@ def data_parallel(module, inputs, device_ids=None, output_device=None, dim=0, mo
 def DataParallel(module, device_ids=None, output_device=None, dim=0, chunk_sizes=None):
     if chunk_sizes is None:
         return torch.nn.DataParallel(module, device_ids, output_device, dim)
-    standard_size = True
-    for i in range(1, len(chunk_sizes)):
-        if chunk_sizes[i] != chunk_sizes[0]:
-            standard_size = False
+    standard_size = all(
+        chunk_sizes[i] == chunk_sizes[0] for i in range(1, len(chunk_sizes))
+    )
+
     if standard_size:
         return torch.nn.DataParallel(module, device_ids, output_device, dim)
     return _DataParallel(module, device_ids, output_device, dim, chunk_sizes)

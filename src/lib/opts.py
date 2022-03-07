@@ -266,22 +266,17 @@ class opts(object):
     self.parser.add_argument('--custom_dataset_ann_path', default='')
 
   def parse(self, args=''):
-    if args == '':
-      opt = self.parser.parse_args()
-    else:
-      opt = self.parser.parse_args(args)
-  
+    opt = self.parser.parse_args() if args == '' else self.parser.parse_args(args)
     if opt.test_dataset == '':
       opt.test_dataset = opt.dataset
-    
+
     opt.gpus_str = opt.gpus
     opt.gpus = [int(gpu) for gpu in opt.gpus.split(',')]
-    opt.gpus = [i for i in range(len(opt.gpus))] if opt.gpus[0] >=0 else [-1]
+    opt.gpus = list(range(len(opt.gpus))) if opt.gpus[0] >=0 else [-1]
     opt.lr_step = [int(i) for i in opt.lr_step.split(',')]
     opt.save_point = [int(i) for i in opt.save_point.split(',')]
     opt.test_scales = [float(i) for i in opt.test_scales.split(',')]
-    opt.save_imgs = [i for i in opt.save_imgs.split(',')] \
-      if opt.save_imgs != '' else []
+    opt.save_imgs = list(opt.save_imgs.split(',')) if opt.save_imgs != '' else []
     opt.ignore_loaded_cats = \
       [int(i) for i in opt.ignore_loaded_cats.split(',')] \
       if opt.ignore_loaded_cats != '' else []
@@ -298,14 +293,12 @@ class opts(object):
       print('Using tracking threshold for out threshold!', opt.track_thresh)
       # if 'ddd' in opt.task:
       opt.show_track_color = True
-      if opt.dataset in ['mot', 'mots', 'youtube_vis']:
+      if (opt.dataset in ['mot', 'mots', 'youtube_vis']
+          or opt.dataset != 'nuscenes'):
         opt.overlap_thresh = 0.05
-      elif opt.dataset == 'nuscenes':
+      else:
         opt.window_size = 7
         opt.overlap_thresh = -1
-      else:
-        opt.overlap_thresh = 0.05
-
     opt.fix_res = not opt.keep_res
     print('Fix size testing.' if opt.fix_res else 'Keep resolution testing.')
 
@@ -338,7 +331,7 @@ class opts(object):
     opt.exp_dir = os.path.join(opt.root_dir, 'exp', opt.task)
     opt.save_dir = os.path.join(opt.exp_dir, opt.exp_id)
     opt.debug_dir = os.path.join(opt.save_dir, 'debug')
-    
+
     if opt.resume and opt.load_model == '':
       opt.load_model = os.path.join(opt.save_dir, 'model_last.pth')
     return opt
@@ -357,35 +350,35 @@ class opts(object):
     opt.output_w = opt.input_w // opt.down_ratio
     opt.input_res = max(opt.input_h, opt.input_w)
     opt.output_res = max(opt.output_h, opt.output_w)
-  
+
     opt.heads = {'hm': opt.num_classes, 'reg': 2, 'wh': 2}
 
-    if not opt.trades:
-        if 'tracking' in opt.task:
-          opt.heads.update({'tracking': 2})
+    if not opt.trades and 'tracking' in opt.task:
+      opt.heads['tracking'] = 2
 
     if 'ddd' in opt.task:
       opt.heads.update({'dep': 1, 'rot': 8, 'dim': 3, 'amodel_offset': 2})
-    
+
     if 'multi_pose' in opt.task:
       opt.heads.update({
         'hps': dataset.num_joints * 2, 'hm_hp': dataset.num_joints,
         'hp_offset': 2})
 
     if opt.ltrb:
-      opt.heads.update({'ltrb': 4})
+      opt.heads['ltrb'] = 4
     if opt.ltrb_amodal:
-      opt.heads.update({'ltrb_amodal': 4})
+      opt.heads['ltrb_amodal'] = 4
     if opt.nuscenes_att:
-      opt.heads.update({'nuscenes_att': 8})
+      opt.heads['nuscenes_att'] = 8
     if opt.velocity:
-      opt.heads.update({'velocity': 3})
+      opt.heads['velocity'] = 3
 
     if opt.embedding:
-        opt.heads.update({'embedding': 128})
+      opt.heads['embedding'] = 128
     if opt.seg:
-        opt.heads.update({'conv_weight': 2*opt.seg_feat_channel**2 + 5*opt.seg_feat_channel + 1})
-        opt.heads.update({'seg_feat': opt.seg_feat_channel})
+      opt.heads['conv_weight'] = (
+          2 * opt.seg_feat_channel**2 + 5 * opt.seg_feat_channel + 1)
+      opt.heads['seg_feat'] = opt.seg_feat_channel
     weight_dict = {'hm': opt.hm_weight, 'wh': opt.wh_weight,
                    'reg': opt.off_weight, 'hps': opt.hp_weight,
                    'hm_hp': opt.hm_hp_weight, 'hp_offset': opt.off_weight,
@@ -408,9 +401,14 @@ class opts(object):
     for head in opt.weights:
       if opt.weights[head] == 0:
         del opt.heads[head]
-    opt.head_conv = {head: [opt.head_conv \
-      for i in range(opt.num_head_conv if head != 'reg' else 1)] for head in opt.heads}
-    
+    opt.head_conv = {
+        head: [
+            opt.head_conv
+            for _ in range(opt.num_head_conv if head != 'reg' else 1)
+        ]
+        for head in opt.heads
+    }
+
     print('input h w:', opt.input_h, opt.input_w)
     print('heads', opt.heads)
     print('weights', opt.weights)
@@ -427,8 +425,7 @@ class opts(object):
     }
     opt = self.parse()
     from dataset.dataset_factory import dataset_factory
-    train_dataset = default_dataset_info[opt.task] \
-      if opt.task in default_dataset_info else 'coco'
+    train_dataset = default_dataset_info.get(opt.task, 'coco')
     if opt.dataset != 'coco':
         dataset = dataset_factory[opt.dataset]
     else:

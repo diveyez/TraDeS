@@ -57,28 +57,25 @@ class MOT(GenericDataset):
       video_id = video['id']
       file_name = video['file_name']
       out_path = os.path.join(results_dir, '{}.txt'.format(file_name))
-      f = open(out_path, 'w')
-      images = self.video_to_images[video_id]
-      tracks = defaultdict(list)
-      for image_info in images:
-        if not (image_info['id'] in results):
-          continue
-        result = results[image_info['id']]
-        frame_id = image_info['frame_id']
-        for item in result:
-          if not ('tracking_id' in item):
-            item['tracking_id'] = np.random.randint(100000)
-          tracking_id = item['tracking_id']
-          bbox = item['bbox']
-          bbox = [bbox[0], bbox[1], bbox[2], bbox[3]]
-          tracks[tracking_id].append([frame_id] + bbox)
-      rename_track_id = 0
-      for track_id in sorted(tracks):
-        rename_track_id += 1
-        for t in tracks[track_id]:
-          f.write('{},{},{:.2f},{:.2f},{:.2f},{:.2f},-1,-1,-1,-1\n'.format(
-            t[0], rename_track_id, t[1], t[2], t[3]-t[1], t[4]-t[2]))
-      f.close()
+      with open(out_path, 'w') as f:
+        images = self.video_to_images[video_id]
+        tracks = defaultdict(list)
+        for image_info in images:
+          if image_info['id'] not in results:
+            continue
+          result = results[image_info['id']]
+          frame_id = image_info['frame_id']
+          for item in result:
+            if 'tracking_id' not in item:
+              item['tracking_id'] = np.random.randint(100000)
+            tracking_id = item['tracking_id']
+            bbox = item['bbox']
+            bbox = [bbox[0], bbox[1], bbox[2], bbox[3]]
+            tracks[tracking_id].append([frame_id] + bbox)
+        for rename_track_id, track_id in enumerate(sorted(tracks), start=1):
+          for t in tracks[track_id]:
+            f.write('{},{},{:.2f},{:.2f},{:.2f},{:.2f},-1,-1,-1,-1\n'.format(
+              t[0], rename_track_id, t[1], t[2], t[3]-t[1], t[4]-t[2]))
   
   def run_eval(self, results, save_dir):
     self.save_results(results, save_dir)

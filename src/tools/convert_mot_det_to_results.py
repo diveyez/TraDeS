@@ -20,20 +20,20 @@ if __name__ == '__main__':
     print('seq', seq)
     seq_path = '{}/{}/'.format(DET_PATH, seq)
     if split == 'val_half':
-      ann_path = seq_path + 'det/det_val_half.txt'
-      train_ann_path = seq_path + 'det/det_train_half.txt'
+      ann_path = f'{seq_path}det/det_val_half.txt'
+      train_ann_path = f'{seq_path}det/det_train_half.txt'
       train_anns = np.loadtxt(train_ann_path, dtype=np.float32, delimiter=',')
       frame_base = int(train_anns[:, 0].max())
     else:
-      ann_path = seq_path + 'det/det.txt'
+      ann_path = f'{seq_path}det/det.txt'
       frame_base = 0
     if not IS_THIRD_PARTY:
       anns = np.loadtxt(ann_path, dtype=np.float32, delimiter=',')
+    score = 1 # float(anns[i][8])
     for i in range(len(anns)):
       frame_id = int(anns[i][0])
       file_name = '{}/img1/{:06d}.jpg'.format(seq, frame_id + frame_base)
       bbox = (anns[i][2:6]).tolist()
-      score = 1 # float(anns[i][8])
       image_to_anns[file_name].append(bbox + [score])
 
   results = {}

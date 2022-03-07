@@ -25,10 +25,7 @@ from detector import Detector
 def convert_onnx(opt):
   os.environ['CUDA_VISIBLE_DEVICES'] = opt.gpus_str
   opt.model_output_list = True
-  if opt.gpus[0] >= 0:
-    opt.device = torch.device('cuda')
-  else:
-    opt.device = torch.device('cpu')
+  opt.device = torch.device('cuda') if opt.gpus[0] >= 0 else torch.device('cpu')
   Dataset = dataset_factory[opt.test_dataset]
   opt = opts().update_dataset_info_and_set_heads(opt, Dataset)
   print(opt)
